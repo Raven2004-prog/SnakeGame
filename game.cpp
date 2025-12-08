@@ -1,244 +1,218 @@
 #include <iostream>
-#include <conio.h>  
-#include <windows.h> 
-#include <thread>   
-#include <chrono>   
 #include <vector>
-#include <cstdlib>   // for rand, system
+#include <cstdlib>
+#include <ctime>
+#include <chrono>
+
+// INCLUDE SDL2
+#define SDL_MAIN_HANDLED
+#include <SDL2/SDL.h>
+
 using namespace std;
 
+// --- CONFIGURATION ---
+const int GRID_SIZE = 20;    // Width/Height of the board (logic)
+const int CELL_SIZE = 30;    // Pixel size of one square (visual)
+const int WINDOW_SIZE = GRID_SIZE * CELL_SIZE; 
 
+// --- SDL GLOBALS ---
+SDL_Window* window = nullptr;
+SDL_Renderer* renderer = nullptr;
 
-// First a way to delay by 1 sec
-//Then a snake class to control the movement
-//Then a game class to control mechanics 
+bool initGraphics() {
+    if (SDL_Init(SDL_INIT_VIDEO) < 0) {
+        cout << "SDL Error: " << SDL_GetError() << endl;
+        return false;
+    }
+    window = SDL_CreateWindow("Low Latency Snake", 
+                              SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 
+                              WINDOW_SIZE, WINDOW_SIZE, 
+                              SDL_WINDOW_SHOWN);
+    if (!window) return false;
 
-//now I need to flatten the vector
-// and use chrono for timing instead of d
-//lastly implement the logic for rendering the board and snake
-
-void update(char &current_dir, int &head_x, int& head_y)
-{
-    if(current_dir == 'a')
-    {
-        head_x--;
-    }
-    if(current_dir == 'w')
-    {
-        head_y--;
-    }
-    if(current_dir == 'd')
-    {
-        head_x++;
-    }
-    if(current_dir == 's')
-    {
-        head_y++;
-    }
-    return;
+    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    return (renderer != nullptr);
 }
 
-void assign(pair<int,int> & apple, pair<int,char>* board)
-{
-    while(board[apple.first + 50*apple.second].first == 1)
-    {
-        apple.first = rand() % 50;
-        apple.second = rand() % 50;
-    }
+void closeGraphics() {
+    SDL_DestroyRenderer(renderer);
+    SDL_DestroyWindow(window);
+    SDL_Quit();
 }
 
-void check(char& current_dir, int& head_x, int& head_y,pair<int,char>* board)
-{
-    if(head_x < 0)
-    {
-        head_x++;
-        if(head_y>3)
-        {
-            current_dir = 'w';
-            board[head_x + head_y*50].second = 'w';
-            head_y--;
-        }
-        else
-        {
-            current_dir = 's';
-            board[head_x + 50*head_y].second = 's';
-            head_y++;
-        }
-    }
-    if(head_y < 0)
-    {
-        head_y++;
-        if(head_x>3)
-        {
-            current_dir = 'a';
-            board[head_x + 50*head_y].second = 'a';
-            head_x--;
-        }
-        else
-        {
-            current_dir = 'd';
-            board[head_x + 50*head_y].second = 'd';
-            head_x++;
-        }
-    }
-    if(head_x > 49)
-    {
-        head_x--;
-        if(head_y>3)
-        {
-            current_dir = 'w';
-            board[head_x + 50*head_y].second = 'w';
-            head_y--;
-        }
-        else
-        {
-            current_dir = 's';
-            board[head_x + 50*head_y].second = 's';
-            head_y++;
+// --- RENDER FUNCTION (Now uses Pixels!) ---
+void render(pair<int, char>* board, pair<int, int> apple, int score) {
+    // 1. Clear Screen (Black)
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    SDL_RenderClear(renderer);
+
+    // 2. Draw Grid Content
+    for (int y = 0; y < GRID_SIZE; y++) {
+        for (int x = 0; x < GRID_SIZE; x++) {
+            // Define the square
+            SDL_Rect rect;
+            rect.x = x * CELL_SIZE;
+            rect.y = y * CELL_SIZE;
+            rect.w = CELL_SIZE;
+            rect.h = CELL_SIZE;
+
+            // Check what is in this cell
+            int type = board[y * GRID_SIZE + x].first;
+            
+            if (x == apple.first && y == apple.second) {
+                SDL_SetRenderDrawColor(renderer, 255, 0, 0, 255); // RED Apple
+                SDL_RenderFillRect(renderer, &rect);
+            } 
+            else if (type == 1) {
+                SDL_SetRenderDrawColor(renderer, 0, 255, 0, 255); // GREEN Snake
+                SDL_RenderFillRect(renderer, &rect);
+                
+                // Optional: Draw a border around snake segments to see them better
+                SDL_SetRenderDrawColor(renderer, 0, 100, 0, 255);
+                SDL_RenderDrawRect(renderer, &rect);
+            }
         }
     }
-    if(head_y > 49)
-    {
-        head_y--;
-        if(head_x>3)
-        {
-            current_dir = 'a';
-            board[head_x + 50*head_y].second = 'a';
-            head_x--;
-        }
-        else
-        {
-            current_dir = 'd';
-            board[head_x + 50*head_y].second = 'd';
-            head_x++;
+
+    // 3. Swap Buffer (Show frame)
+    SDL_RenderPresent(renderer);
+}
+
+// --- LOGIC HELPERS (Same as before) ---
+
+void wrap(int &x, int &y) {
+    if(x < 0) x = GRID_SIZE - 1;
+    else if(x >= GRID_SIZE) x = 0;
+    if(y < 0) y = GRID_SIZE - 1;
+    else if(y >= GRID_SIZE) y = 0;
+}
+
+void assign(pair<int,int> & apple, pair<int,char>* board) {
+    while(true) {
+        int r = rand() % (GRID_SIZE * GRID_SIZE);
+        if(board[r].first == 0) {
+            apple.first = r % GRID_SIZE;
+            apple.second = r / GRID_SIZE;
+            break;
         }
     }
 }
 
-void gameplayh(char& current_dir, int& head_x, int& head_y)
-{
-    if(current_dir == 'a')
-        {
-            head_x = head_x - 1;
-        }
-        else if(current_dir == 'w')
-        {
-            head_y = head_y - 1;
-        }
-        else if(current_dir == 'd')
-        {
-            head_x = head_x + 1;
-        }
-        else if(current_dir == 's')
-        {
-            head_y = head_y + 1;
-        }
+void gameplayh(char current_dir, int& head_x, int& head_y) {
+    if(current_dir == 'a') head_x--;
+    else if(current_dir == 'w') head_y--;
+    else if(current_dir == 'd') head_x++;
+    else if(current_dir == 's') head_y++;
+    wrap(head_x, head_y);
 }
 
-void gameplayt(char& tail_dir, int& tail_x, int& tail_y)
-{
-    if(tail_dir == 'd')
-    {
-        tail_x = tail_x + 1;
-    }
-    else if(tail_dir == 'w')
-    {
-        tail_y = tail_y - 1;
-    }
-    else if(tail_dir == 's')
-    {
-        tail_y = tail_y + 1;
-    }
-    else if(tail_dir == 'a')
-    {
-        tail_x = tail_x - 1;
-    }
+void gameplayt(char tail_dir, int& tail_x, int& tail_y) {
+    if(tail_dir == 'd') tail_x++;
+    else if(tail_dir == 'w') tail_y--;
+    else if(tail_dir == 's') tail_y++;
+    else if(tail_dir == 'a') tail_x--;
+    wrap(tail_x, tail_y);
 }
 
-bool take_input()
-{
-    return true;
-}
+int main(int argc, char* argv[]) {
+    if (!initGraphics()) return 1;
+    srand(time(0));
 
-void gameover()
-{
-    cout<<"Gameover";
-    exit(0);
-}
+    // MEMORY
+    pair<int,char> board[GRID_SIZE * GRID_SIZE];
+    for(int i = 0; i < GRID_SIZE * GRID_SIZE; i++) board[i] = {0, 'n'};
 
-// render function
+    // STATE
+    int head_x = GRID_SIZE/2, head_y = GRID_SIZE/2;
+    int tail_x = head_x, tail_y = head_y;
+    board[head_y * GRID_SIZE + head_x] = {1, 'n'};
 
+    pair<int,int> apple;
+    assign(apple, board);
 
-
-int main() {
-    //the board is the game board where the snake plays
-    pair<int,char> board[50*50];
-    for(int i = 0; i < 50 * 50; i++) {
-        board[i] = {0, 'n'}; 
-    }
-    int snake_size = 1;
     char current_dir = 'n';
-    char input_dir = 'n';
-    char tail_dir = 'n';
-    int head_x = 25,head_y = 25;
-    int tail_x = 25,tail_y = 25;
-    int d = 0;
-    pair<int,int> apple = {4,4};
+    char next_dir = 'n';
+    int score = 0;
+    bool quit = false;
 
+    // TIMING
     using clock = std::chrono::high_resolution_clock;
     auto last_time = clock::now();
     double acc = 0.0;
-    double ticks = 0.1;
+    double ticks = 0.1; // 100ms speed
 
-    while(true)
-    {
-        if(_kbhit())
-        {
-            input_dir = _getch();
-            if(input_dir == 'n')
-            continue;
-            else if(current_dir == 'w' && input_dir == 's')
-            continue;
-            else if(current_dir == 's' && input_dir == 'w')
-            continue;
-            else if(current_dir == 'a' && input_dir == 'd')
-            continue;
-            else if(current_dir == 'd' && input_dir == 'a')
-            continue;
-            else
-            {
-                current_dir = input_dir;
-                board[head_x + head_y*50].second = current_dir;
-            }   
+    SDL_Event e;
+
+    while(!quit) {
+        // --- 1. SDL INPUT (Replaces kbhit) ---
+        // This loop pulls all input events from the OS queue
+        while (SDL_PollEvent(&e)) {
+            if (e.type == SDL_QUIT) {
+                quit = true;
+            } else if (e.type == SDL_KEYDOWN) {
+                switch (e.key.keysym.sym) {
+                    case SDLK_w: if (current_dir != 's') next_dir = 'w'; break;
+                    case SDLK_s: if (current_dir != 'w') next_dir = 's'; break;
+                    case SDLK_a: if (current_dir != 'd') next_dir = 'a'; break;
+                    case SDLK_d: if (current_dir != 'a') next_dir = 'd'; break;
+                    case SDLK_q: quit = true; break;
+                }
+                if (current_dir == 'n') current_dir = next_dir;
+            }
         }
+
+        // --- 2. TIMING ---
         auto current_time = clock::now();
         std::chrono::duration<double> elapsed = current_time - last_time;
         last_time = current_time;
         acc += elapsed.count();
-        if(acc>=ticks)
-        {
-            acc = 0;
-            gameplayh(current_dir,head_x,head_y);
-            check(current_dir,head_x,head_y,board);
-            board[head_x + head_y*50].first++;
-            if(board[head_x + head_y*50].first>1)
-            {
-                gameover();
+
+        // --- 3. LOGIC ---
+        if(acc >= ticks) {
+            acc -= ticks;
+            
+            if (current_dir != 'n') {
+                current_dir = next_dir;
+                board[head_y * GRID_SIZE + head_x].second = current_dir;
+
+                int next_x = head_x; 
+                int next_y = head_y;
+                gameplayh(current_dir, next_x, next_y);
+
+                // Self Collision
+                if(board[next_y * GRID_SIZE + next_x].first == 1) {
+                     if (!(next_x == tail_x && next_y == tail_y)) {
+                         cout << "GAME OVER! Score: " << score << endl;
+                         quit = true;
+                    }
+                }
+
+                // Move Head
+                bool ateApple = (next_x == apple.first && next_y == apple.second);
+                board[next_y * GRID_SIZE + next_x].first = 1;
+                head_x = next_x;
+                head_y = next_y;
+
+                // Move Tail
+                if(!ateApple) {
+                    if(board[tail_y * GRID_SIZE + tail_x].second != 'n') {
+                        char tail_dir = board[tail_y * GRID_SIZE + tail_x].second;
+                        board[tail_y * GRID_SIZE + tail_x].first = 0;
+                        gameplayt(tail_dir, tail_x, tail_y);
+                    }
+                } else {
+                    score++;
+                    assign(apple, board);
+                }
             }
-            if(board[tail_x + tail_y*50].second != 'n')
-            {
-                tail_dir = board[tail_x + tail_y*50].second;
-            }
-            gameplayt(tail_dir,tail_x,tail_y);
-            board[tail_x + tail_y*50].first--;
-            if(head_x == apple.first && head_y == apple.second)
-            {
-                update(current_dir,head_x,head_y);
-                check(current_dir, head_x, head_y,board);
-                board[head_x + head_y*50].first++;
-                assign(apple,board);
-            }
-        } 
+            // --- 4. RENDER ---
+            render(board, apple, score);
+        }
+        
+        // Don't burn CPU
+        SDL_Delay(1);
     }
+
+    closeGraphics();
     return 0;
 }
