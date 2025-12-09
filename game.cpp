@@ -10,9 +10,8 @@
 
 using namespace std;
 
-// --- CONFIGURATION ---
-const int GRID_SIZE = 20;    // Width/Height of the board (logic)
-const int CELL_SIZE = 30;    // Pixel size of one square (visual)
+const int GRID_SIZE = 20;    
+const int CELL_SIZE = 30;    
 const int WINDOW_SIZE = GRID_SIZE * CELL_SIZE; 
 
 // --- SDL GLOBALS ---
@@ -77,16 +76,12 @@ void render(pair<int, char>* board, pair<int, int> apple, int score) {
     // 3. Swap Buffer (Show frame)
     SDL_RenderPresent(renderer);
 }
-
-// --- LOGIC HELPERS (Same as before) ---
-
 void wrap(int &x, int &y) {
     if(x < 0) x = GRID_SIZE - 1;
     else if(x >= GRID_SIZE) x = 0;
     if(y < 0) y = GRID_SIZE - 1;
     else if(y >= GRID_SIZE) y = 0;
 }
-
 void assign(pair<int,int> & apple, pair<int,char>* board) {
     while(true) {
         int r = rand() % (GRID_SIZE * GRID_SIZE);
@@ -97,7 +92,6 @@ void assign(pair<int,int> & apple, pair<int,char>* board) {
         }
     }
 }
-
 void gameplayh(char current_dir, int& head_x, int& head_y) {
     if(current_dir == 'a') head_x--;
     else if(current_dir == 'w') head_y--;
@@ -105,7 +99,6 @@ void gameplayh(char current_dir, int& head_x, int& head_y) {
     else if(current_dir == 's') head_y++;
     wrap(head_x, head_y);
 }
-
 void gameplayt(char tail_dir, int& tail_x, int& tail_y) {
     if(tail_dir == 'd') tail_x++;
     else if(tail_dir == 'w') tail_y--;
@@ -113,23 +106,16 @@ void gameplayt(char tail_dir, int& tail_x, int& tail_y) {
     else if(tail_dir == 'a') tail_x--;
     wrap(tail_x, tail_y);
 }
-
 int main(int argc, char* argv[]) {
     if (!initGraphics()) return 1;
     srand(time(0));
-
-    // MEMORY
     pair<int,char> board[GRID_SIZE * GRID_SIZE];
     for(int i = 0; i < GRID_SIZE * GRID_SIZE; i++) board[i] = {0, 'n'};
-
-    // STATE
     int head_x = GRID_SIZE/2, head_y = GRID_SIZE/2;
     int tail_x = head_x, tail_y = head_y;
     board[head_y * GRID_SIZE + head_x] = {1, 'n'};
-
     pair<int,int> apple;
     assign(apple, board);
-
     char current_dir = 'n';
     char next_dir = 'n';
     int score = 0;
@@ -139,7 +125,7 @@ int main(int argc, char* argv[]) {
     using clock = std::chrono::high_resolution_clock;
     auto last_time = clock::now();
     double acc = 0.0;
-    double ticks = 0.1; // 100ms speed
+    double ticks = 0.1; 
 
     SDL_Event e;
 
@@ -160,14 +146,10 @@ int main(int argc, char* argv[]) {
                 if (current_dir == 'n') current_dir = next_dir;
             }
         }
-
-        // --- 2. TIMING ---
         auto current_time = clock::now();
         std::chrono::duration<double> elapsed = current_time - last_time;
         last_time = current_time;
         acc += elapsed.count();
-
-        // --- 3. LOGIC ---
         if(acc >= ticks) {
             acc -= ticks;
             
@@ -178,22 +160,16 @@ int main(int argc, char* argv[]) {
                 int next_x = head_x; 
                 int next_y = head_y;
                 gameplayh(current_dir, next_x, next_y);
-
-                // Self Collision
                 if(board[next_y * GRID_SIZE + next_x].first == 1) {
                      if (!(next_x == tail_x && next_y == tail_y)) {
                          cout << "GAME OVER! Score: " << score << endl;
                          quit = true;
                     }
                 }
-
-                // Move Head
                 bool ateApple = (next_x == apple.first && next_y == apple.second);
                 board[next_y * GRID_SIZE + next_x].first = 1;
                 head_x = next_x;
                 head_y = next_y;
-
-                // Move Tail
                 if(!ateApple) {
                     if(board[tail_y * GRID_SIZE + tail_x].second != 'n') {
                         char tail_dir = board[tail_y * GRID_SIZE + tail_x].second;
